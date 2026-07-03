@@ -12,6 +12,7 @@
 // @grant        GM.registerMenuCommand
 // @connect      cobalt.directory
 // @connect      *
+// @license      MIT
 // @run-at       document-start
 // ==/UserScript==
 //
