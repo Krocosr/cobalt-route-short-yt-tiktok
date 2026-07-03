@@ -4,6 +4,12 @@ A Tampermonkey userscript that adds a **Download** dropdown to YouTube and TikTo
 
 **Version:** 2.3.0 | **Author:** Anko3 | **License:** MIT
 
+## Support
+
+If you find this userscript helpful, consider buying me a coffee!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/S3O022JP96)
+
 ## Features
 
 ### Instance Selection & Reliability
