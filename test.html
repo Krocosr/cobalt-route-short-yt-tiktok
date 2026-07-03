@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cobalt Downloader – Mock YouTube Test</title>
+    <style>
+        body {
+            font-family: Roboto, Arial, sans-serif;
+            padding: 24px;
+            background: #0f0f0f;
+            color: #fff;
+        }
+        h1 { font-size: 18px; margin-bottom: 12px; }
+        .mock-player {
+            width: 640px;
+            height: 360px;
+            background: #222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            border-radius: 8px;
+        }
+        #top-level-buttons-computed {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+        }
+        .native-btn {
+            padding: 8px 12px;
+            border-radius: 18px;
+            border: none;
+            background: #272727;
+            color: #f1f1f1;
+            cursor: pointer;
+        }
+        #status {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        #status.pass { background: #2e7d32; color: #fff; }
+        #status.fail { background: #c62828; color: #fff; }
+        #log {
+            margin-top: 12px;
+            padding: 12px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mock YouTube Page – Cobalt Downloader Test (Shadow DOM)</h1>
+    <div class="mock-player">Mock video player</div>
+    <ytd-menu-renderer></ytd-menu-renderer>
+    <div id="status" class="fail">Testing...</div>
+    <div id="log">Log output will appear here.</div>
+
+    <script>
+        window.__COBALT_HOST__ = 'www.youtube.com';
+
+        const log = (...args) => {
+            const el = document.getElementById('log');
+            el.textContent += '\n' + args.join(' ');
+            console.log('[TEST]', ...args);
+        };
+
+        window.GM = {
+            xmlHttpRequest: (opts) => {
+                log('GM.xmlHttpRequest ->', opts.url);
+                setTimeout(() => {
+                    if (opts.url.includes('cobalt.directory/api/tests')) {
+                        opts.onload({
+                            responseText: JSON.stringify({
+                                lastUpdatedUTC: new Date().toISOString(),
+                                data: [{
+                                    api: 'cobalt.test.example',
+                                    online: true,
+                                    turnstile: false,
+                                    tests: {
+                                        youtube: { status: true, message: 'Working' },
+                                        'youtube-shorts': { status: true, message: 'Working' },
+                                        tiktok: { status: true, message: 'Working' }
+                                    }
+                                }]
+                            })
+                        });
+                    } else if (opts.url.includes('cobalt.directory/api/working')) {
+                        opts.onload({
+                            responseText: JSON.stringify({
+                                lastUpdatedUTC: new Date().toISOString(),
+                                data: {
+                                    youtube: ['https://cobalt.test.example']
+                                }
+                            })
+                        });
+                    } else if (opts.method === 'POST' && opts.data) {
+                        opts.onload({
+                            responseText: JSON.stringify({
+                                status: 'redirect',
+                                url: 'https://example.com/fake-download?mode=' + encodeURIComponent(opts.data)
+                            })
+                        });
+                    } else {
+                        opts.onerror({ status: 0, statusText: 'unknown url' });
+                    }
+                }, 200);
+            },
+            getValue: async () => null,
+            setValue: async () => {},
+            registerMenuCommand: () => {}
+        };
+    </script>
+    <script>
+        // Create shadow DOM to simulate YouTube's Polymer components
+        const renderer = document.querySelector('ytd-menu-renderer');
+        const shadow = renderer.attachShadow({ mode: 'open' });
+        shadow.innerHTML = `
+            <div id="top-level-buttons-computed" style="display:flex;align-items:center;gap:8px;padding:8px 0;">
+                <button style="padding:8px 12px;border-radius:18px;border:none;background:#272727;color:#f1f1f1;cursor:pointer;">Like</button>
+                <button style="padding:8px 12px;border-radius:18px;border:none;background:#272727;color:#f1f1f1;cursor:pointer;">Share</button>
+            </div>
+        `;
+        log('Shadow DOM created with #top-level-buttons-computed inside ytd-menu-renderer');
+    </script>
+    <script src="cobalt-downloader.user.js"></script>
+    <script>
+        setTimeout(() => {
+            const status = document.getElementById('status');
+            // Search both light DOM and shadow DOM for the button
+            let container = document.getElementById('cobalt-dl-container');
+            if (!container) {
+                const renderer = document.querySelector('ytd-menu-renderer');
+                if (renderer && renderer.shadowRoot) {
+                    container = renderer.shadowRoot.querySelector('#cobalt-dl-container');
+                }
+            }
+            // Also check floating fallback
+            const floating = document.getElementById('cobalt-dl-floating');
+            if (!container && !floating) {
+                status.textContent = 'FAIL: cobalt download button not found in DOM or shadow DOM.';
+                status.className = 'fail';
+                log('FAIL: cobalt download button not found anywhere.');
+                return;
+            }
+
+            const target = container || floating;
+            const btn = target.querySelector('.cobalt-btn');
+            if (!btn) {
+                status.textContent = 'FAIL: button container exists but inner button missing.';
+                status.className = 'fail';
+                log('FAIL: button container exists but inner button missing.');
+                return;
+            }
+
+            log('SUCCESS: cobalt download button found in ' + (container ? 'native container' : 'floating fallback') + '.');
+            btn.click();
+            const menu = target.querySelector('.cobalt-menu');
+            if (menu && menu.classList.contains('cobalt-open')) {
+                status.textContent = 'PASS: button and dropdown work (' + (container ? 'shadow DOM' : 'floating') + ').';
+                status.className = 'pass';
+                log('PASS: dropdown menu opened on click.');
+            } else {
+                status.textContent = 'FAIL: dropdown did not open on click.';
+                status.className = 'fail';
+                log('FAIL: dropdown did not open on click.');
+            }
+        }, 1500);
+    </script>
+</body>
+</html>
